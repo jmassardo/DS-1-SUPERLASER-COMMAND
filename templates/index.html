@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DS-1 Orbital Battle Station — Superlaser Command Console</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="scanline"></div>
+
+    <header>
+        <div class="header-left">
+            <div class="imperial-logo">⬡</div>
+            <div>
+                <h1>DS-1 SUPERLASER COMMAND</h1>
+                <p class="subtitle">IMPERIAL BATTLE STATION · CLASSIFIED · CLEARANCE LEVEL 5+</p>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="status-indicator online" id="system-status">● ONLINE</div>
+            <div class="clock" id="imperial-clock"></div>
+        </div>
+    </header>
+
+    <!-- Auth Modal -->
+    <div class="modal-overlay" id="auth-modal">
+        <div class="modal">
+            <h2>⬡ IMPERIAL AUTHENTICATION</h2>
+            <p class="modal-subtitle">Authorization required for Death Star operations</p>
+            <div class="form-group">
+                <label>OFFICER ID</label>
+                <input type="text" id="auth-username" placeholder="Enter officer ID" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label>ACCESS CODE</label>
+                <input type="password" id="auth-password" placeholder="Enter access code" autocomplete="off">
+            </div>
+            <button class="btn btn-primary" onclick="authenticate()">AUTHENTICATE</button>
+            <p class="auth-hint">Hint: tarkin / deathstar2024</p>
+            <div id="auth-error" class="error-text"></div>
+        </div>
+    </div>
+
+    <main id="main-console" class="hidden">
+        <!-- Top Row: Targeting + Power -->
+        <div class="grid-top">
+            <!-- Planet Targeting Panel -->
+            <section class="panel" id="targeting-panel">
+                <div class="panel-header">
+                    <h2>◎ TARGETING ARRAY</h2>
+                    <span class="panel-status" id="targeting-status">SCANNING</span>
+                </div>
+                <div class="panel-body">
+                    <div class="search-bar">
+                        <input type="text" id="planet-search" placeholder="Search planets..." onkeyup="searchPlanets()">
+                    </div>
+                    <div class="planet-list" id="planet-list">
+                        <!-- Populated by JS -->
+                    </div>
+                    <div class="target-info" id="target-info">
+                        <p class="no-target">No target selected</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Power Management Panel -->
+            <section class="panel" id="power-panel">
+                <div class="panel-header">
+                    <h2>⚡ REACTOR POWER</h2>
+                    <span class="panel-status" id="power-status">STANDBY</span>
+                </div>
+                <div class="panel-body">
+                    <div class="power-gauge">
+                        <div class="gauge-label">SUPERLASER CHARGE</div>
+                        <div class="gauge-bar">
+                            <div class="gauge-fill" id="power-fill" style="width: 0%"></div>
+                        </div>
+                        <div class="gauge-value"><span id="power-value">0</span>%</div>
+                    </div>
+                    <div class="power-gauge">
+                        <div class="gauge-label">REACTOR TEMPERATURE</div>
+                        <div class="gauge-bar temp-bar">
+                            <div class="gauge-fill temp-fill" id="temp-fill" style="width: 0%"></div>
+                        </div>
+                        <div class="gauge-value"><span id="temp-value">18.5</span>°C</div>
+                    </div>
+                    <div class="power-gauge">
+                        <div class="gauge-label">KYBER CRYSTAL ALIGNMENT</div>
+                        <div class="gauge-bar crystal-bar">
+                            <div class="gauge-fill crystal-fill" id="crystal-fill" style="width: 100%"></div>
+                        </div>
+                        <div class="gauge-value"><span id="crystal-value">100</span>%</div>
+                    </div>
+                    <div class="power-controls">
+                        <button class="btn btn-charge" onclick="chargeLaser(10)">+10%</button>
+                        <button class="btn btn-charge" onclick="chargeLaser(25)">+25%</button>
+                        <button class="btn btn-charge" onclick="chargeLaser(50)">+50%</button>
+                        <button class="btn btn-danger" onclick="dischargeLaser()">DISCHARGE</button>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Middle Row: Fire Control -->
+        <section class="panel fire-panel" id="fire-panel">
+            <div class="panel-header">
+                <h2>💥 SUPERLASER FIRE CONTROL</h2>
+                <span class="panel-status" id="fire-status">STANDING BY</span>
+            </div>
+            <div class="panel-body fire-body">
+                <div class="fire-info">
+                    <div class="fire-stat">
+                        <label>TARGET</label>
+                        <span id="fire-target">—</span>
+                    </div>
+                    <div class="fire-stat">
+                        <label>DISTANCE</label>
+                        <span id="fire-distance">—</span>
+                    </div>
+                    <div class="fire-stat">
+                        <label>POWER</label>
+                        <span id="fire-power">0%</span>
+                    </div>
+                    <div class="fire-stat">
+                        <label>STATUS</label>
+                        <span id="fire-readiness" class="text-yellow">NOT READY</span>
+                    </div>
+                </div>
+                <button class="btn btn-fire" id="fire-btn" onclick="fireLaser()" disabled>
+                    ⬡ FIRE SUPERLASER ⬡
+                </button>
+                <div id="fire-countdown" class="fire-countdown hidden"></div>
+            </div>
+        </section>
+
+        <!-- Bottom Row: Crew + Logs -->
+        <div class="grid-bottom">
+            <!-- Crew Stations -->
+            <section class="panel" id="crew-panel">
+                <div class="panel-header">
+                    <h2>👤 CREW STATIONS</h2>
+                    <span class="panel-status">MONITORING</span>
+                </div>
+                <div class="panel-body">
+                    <div class="crew-list" id="crew-list">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Firing Log -->
+            <section class="panel" id="log-panel">
+                <div class="panel-header">
+                    <h2>📋 OPERATIONS LOG</h2>
+                    <span class="panel-status">RECORDING</span>
+                </div>
+                <div class="panel-body">
+                    <div class="log-entries" id="log-entries">
+                        <div class="log-entry system">System initialized. All stations report ready.</div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <footer>
+        <span>GALACTIC EMPIRE · IMPERIAL NAVY · DEATH STAR PROJECT</span>
+        <span>STATUS: FULLY OPERATIONAL</span>
+    </footer>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
