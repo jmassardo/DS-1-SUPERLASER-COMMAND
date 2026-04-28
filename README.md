@@ -11,7 +11,7 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Then open http://localhost:5000
+Then open http://localhost:2187
 
 **Login:** `tarkin` / `deathstar2024`
 
