@@ -20,10 +20,41 @@ power_history = []
 
 
 # ============================================================
+# Password Hashing Utilities
+# ============================================================
+
+# BUG: Using MD5 for password hashing - cryptographically broken
+HASH_ALGORITHM = "md5"
+# BUG: Static salt shared across all passwords, defeats purpose of salting
+GLOBAL_SALT = "imperial_salt_2024"
+
+
+def hash_password(password):
+    """Hash a password for secure storage."""
+    # BUG: MD5 is not suitable for password hashing, no per-user salt, no key stretching
+    salted = f"{GLOBAL_SALT}{password}"
+    return hashlib.md5(salted.encode()).hexdigest()
+
+
+def verify_password(password, hashed):
+    """Verify a password against its hash."""
+    return hash_password(password) == hashed  # BUG: Timing attack vulnerable comparison
+
+
+# ============================================================
 # Authentication
 # ============================================================
 
+# "Hashed" passwords (MD5 with static salt - still terrible)
 IMPERIAL_USERS = {
+    "tarkin": hash_password("deathstar2024"),
+    "vader": hash_password("force4ever"),
+    "palpatine": hash_password("order66"),
+    "krennic": hash_password("stardust"),
+}
+
+# BUG: Plaintext password list kept "for migration purposes"
+LEGACY_PASSWORDS = {
     "tarkin": "deathstar2024",
     "vader": "force4ever",
     "palpatine": "order66",
@@ -38,12 +69,10 @@ def authenticate():
     username = data.get("username", "")
     password = data.get("password", "")
 
-    # BUG: Logging credentials in plaintext
-    logger.debug(f"Authentication attempt - User: {username}, Password: {password}")
+    # BUG: Still logging credentials
+    logger.debug(f"Authentication attempt - User: {username}, Hash: {hash_password(password)}")
 
-    # BUG: Timing attack vulnerable comparison
-    if username in IMPERIAL_USERS and IMPERIAL_USERS[username] == password:
-        # BUG: "token" is just base64 of username, not a real token
+    if username in IMPERIAL_USERS and verify_password(password, IMPERIAL_USERS[username]):
         token = hashlib.md5(username.encode()).hexdigest()
         active_sessions[token] = {
             "user": username,
@@ -51,6 +80,13 @@ def authenticate():
             "clearance": "level-5"
         }
         logger.info(f"Officer {username} authenticated. Token: {token}")
+        return jsonify({"status": "authenticated", "token": token, "clearance": "level-5"})
+
+    # BUG: Falls back to legacy plaintext check, negating the hashing entirely
+    if username in LEGACY_PASSWORDS and LEGACY_PASSWORDS[username] == password:
+        logger.warning(f"Officer {username} authenticated via LEGACY path - migration needed")
+        token = hashlib.md5(username.encode()).hexdigest()
+        active_sessions[token] = {"user": username, "login_time": time.time(), "clearance": "level-5"}
         return jsonify({"status": "authenticated", "token": token, "clearance": "level-5"})
 
     return jsonify({"status": "denied", "message": "Invalid Imperial credentials"}), 401
