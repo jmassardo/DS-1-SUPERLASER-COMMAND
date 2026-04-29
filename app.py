@@ -279,6 +279,64 @@ def override_station(station_id):
 
 
 # ============================================================
+# Session Management
+# ============================================================
+
+@app.route("/api/sessions", methods=["GET"])
+def list_sessions():
+    """List all active sessions. For admin debugging."""
+    # BUG: Exposes all active session tokens and user data to any caller - no auth check
+    return jsonify({
+        "active_sessions": active_sessions,
+        "total": len(active_sessions)
+    })
+
+
+@app.route("/api/sessions/validate", methods=["POST"])
+def validate_session():
+    """Validate a session token."""
+    data = request.get_json()
+    token = data.get("token", "")
+
+    if token in active_sessions:
+        session = active_sessions[token]
+        # BUG: No session expiry check - sessions live forever
+        return jsonify({"valid": True, "user": session["user"], "clearance": session["clearance"]})
+
+    return jsonify({"valid": False}), 401
+
+
+@app.route("/api/sessions/terminate", methods=["POST"])
+def terminate_session():
+    """Terminate another user's session."""
+    data = request.get_json()
+    target_token = data.get("token", "")
+
+    # BUG: Any user can terminate any other user's session - no permission check
+    # BUG: No audit trail of who terminated the session
+    if target_token in active_sessions:
+        terminated_user = active_sessions[target_token]["user"]
+        del active_sessions[target_token]
+        return jsonify({"status": "terminated", "user": terminated_user})
+
+    return jsonify({"error": "Session not found"}), 404
+
+
+@app.route("/api/sessions/export", methods=["GET"])
+def export_sessions():
+    """Export session data for analysis."""
+    import json
+
+    # BUG: Writes sensitive session data to a world-readable temp file
+    export_path = "/tmp/imperial_sessions.json"
+    with open(export_path, "w") as f:
+        json.dump(active_sessions, f, default=str)
+
+    # BUG: Returns file path to caller, enabling information disclosure
+    return jsonify({"exported_to": export_path, "session_count": len(active_sessions)})
+
+
+# ============================================================
 # System Diagnostics
 # ============================================================
 
