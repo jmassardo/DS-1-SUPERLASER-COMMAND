@@ -72,17 +72,52 @@ def search_planets():
     """Search for planets by name or sector."""
     search_term = request.args.get("q", "")
 
-    # BUG: SQL injection — directly interpolating user input into query
+    # Fixed: Using parameterized query to prevent SQL injection
     conn = get_connection()
-    query = f"SELECT * FROM planets WHERE name LIKE '%{search_term}%' OR sector LIKE '%{search_term}%'"
-    logger.debug(f"Executing planet search query: {query}")
-    try:
-        results = conn.execute(query).fetchall()
-        conn.close()
-        return jsonify([dict(r) for r in results])
-    except Exception as e:
-        conn.close()
-        return jsonify({"error": str(e)}), 500  # BUG: exposing raw error details to client
+    results = conn.execute(
+        "SELECT * FROM planets WHERE name LIKE ? OR sector LIKE ?",
+        (f"%{search_term}%", f"%{search_term}%")
+    ).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in results])
+
+
+@app.route("/api/planets/import", methods=["POST"])
+def import_planets():
+    """Import planet data from external sources. Accepts YAML configuration."""
+    import yaml  # BUG: using yaml.load (unsafe) instead of yaml.safe_load
+
+    data = request.get_data(as_text=True)
+    config = yaml.load(data, Loader=yaml.FullLoader)  # BUG: FullLoader allows arbitrary Python object instantiation
+
+    if not config or "planets" not in config:
+        return jsonify({"error": "Invalid import format"}), 400
+
+    conn = get_connection()
+    imported = 0
+    for planet in config["planets"]:
+        conn.execute(
+            "INSERT INTO planets (name, sector, population, distance_parsecs) VALUES (?, ?, ?, ?)",
+            (planet["name"], planet["sector"], planet.get("population", "Unknown"), planet.get("distance", 0))
+        )
+        imported += 1
+    conn.commit()
+    conn.close()
+
+    return jsonify({"status": "imported", "count": imported})
+
+
+@app.route("/api/planets/backup", methods=["GET"])
+def backup_planets():
+    """Create a backup file of planet data."""
+    import subprocess
+    backup_name = request.args.get("name", "planets_backup")
+
+    # BUG: Command injection via unsanitized backup_name parameter
+    cmd = f"sqlite3 {DB_PATH} '.dump planets' > /tmp/{backup_name}.sql"
+    subprocess.Popen(cmd, shell=True)
+
+    return jsonify({"status": "backup_started", "file": f"/tmp/{backup_name}.sql"})
 
 
 @app.route("/api/planets/<int:planet_id>/target", methods=["POST"])
