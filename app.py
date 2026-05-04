@@ -4,6 +4,7 @@ import time
 import logging
 import os
 import hashlib
+import threading
 from database import get_connection, init_db, query_db, DB_PATH
 
 app = Flask(__name__)
@@ -12,6 +13,49 @@ app.secret_key = "imperial-secret-key-12345"  # BUG: hardcoded secret key
 # BUG: Debug mode enabled, verbose logging exposes sensitive info
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("DeathStarControl")
+
+
+# ============================================================
+# Rate Limiting
+# ============================================================
+
+# Store request timestamps per IP for rate limiting
+rate_limit_store = {}
+rate_limit_lock = threading.Lock()
+RATE_LIMIT_WINDOW = 60  # seconds
+RATE_LIMIT_MAX_REQUESTS = 100
+
+
+def check_rate_limit(ip_address):
+    """Check if an IP has exceeded the rate limit."""
+    now = time.time()
+
+    with rate_limit_lock:
+        if ip_address not in rate_limit_store:
+            rate_limit_store[ip_address] = []
+
+        # Clean up old entries outside the current window
+        rate_limit_store[ip_address] = [
+            t for t in rate_limit_store[ip_address]
+            if now - t <= RATE_LIMIT_WINDOW
+        ]
+
+        rate_limit_store[ip_address].append(now)
+
+        if len(rate_limit_store[ip_address]) >= RATE_LIMIT_MAX_REQUESTS:
+            return False
+    return True
+
+
+@app.before_request
+def rate_limit_middleware():
+    """Apply rate limiting to all requests."""
+    ip = request.remote_addr
+    if not check_rate_limit(ip):
+        return jsonify({
+            "error": "Rate limit exceeded",
+            "retry_after": RATE_LIMIT_WINDOW
+        }), 429
 
 # BUG: Global mutable state used for tracking — not thread-safe
 firing_queue = []
