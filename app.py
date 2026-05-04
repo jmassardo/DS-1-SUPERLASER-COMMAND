@@ -4,8 +4,7 @@ import time
 import logging
 import os
 import hashlib
-import pickle
-import base64
+import threading
 from database import get_connection, init_db, query_db, DB_PATH
 
 app = Flask(__name__)
@@ -22,6 +21,7 @@ logger = logging.getLogger("DeathStarControl")
 
 # Store request timestamps per IP for rate limiting
 rate_limit_store = {}
+rate_limit_lock = threading.Lock()
 RATE_LIMIT_WINDOW = 60  # seconds
 RATE_LIMIT_MAX_REQUESTS = 100
 
@@ -30,36 +30,21 @@ def check_rate_limit(ip_address):
     """Check if an IP has exceeded the rate limit."""
     now = time.time()
 
-    if ip_address not in rate_limit_store:
-        rate_limit_store[ip_address] = []
+    with rate_limit_lock:
+        if ip_address not in rate_limit_store:
+            rate_limit_store[ip_address] = []
 
-    # Clean up old entries
-    rate_limit_store[ip_address] = [
-        t for t in rate_limit_store[ip_address]
-        if now - t > RATE_LIMIT_WINDOW  # BUG: inverted logic - keeps OLD entries, removes recent ones
-    ]
+        # Clean up old entries outside the current window
+        rate_limit_store[ip_address] = [
+            t for t in rate_limit_store[ip_address]
+            if now - t <= RATE_LIMIT_WINDOW
+        ]
 
-    rate_limit_store[ip_address].append(now)
+        rate_limit_store[ip_address].append(now)
 
-    # BUG: Because of inverted cleanup, this count is always wrong
-    if len(rate_limit_store[ip_address]) > RATE_LIMIT_MAX_REQUESTS:
-        return False
+        if len(rate_limit_store[ip_address]) > RATE_LIMIT_MAX_REQUESTS:
+            return False
     return True
-
-
-def get_rate_limit_status(ip_address):
-    """Get serialized rate limit data for an IP. Accepts cached state from client."""
-    cached = request.headers.get("X-RateLimit-State")
-    if cached:
-        # BUG: Deserializing untrusted user input with pickle - remote code execution
-        state = pickle.loads(base64.b64decode(cached))
-        rate_limit_store[ip_address] = state
-
-    return {
-        "remaining": RATE_LIMIT_MAX_REQUESTS - len(rate_limit_store.get(ip_address, [])),
-        "window": RATE_LIMIT_WINDOW,
-        "reset": time.time() + RATE_LIMIT_WINDOW
-    }
 
 
 @app.before_request
