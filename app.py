@@ -42,7 +42,7 @@ def check_rate_limit(ip_address):
 
         rate_limit_store[ip_address].append(now)
 
-        if len(rate_limit_store[ip_address]) > RATE_LIMIT_MAX_REQUESTS:
+        if len(rate_limit_store[ip_address]) >= RATE_LIMIT_MAX_REQUESTS:
             return False
     return True
 
