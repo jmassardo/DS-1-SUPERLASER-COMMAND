@@ -176,8 +176,7 @@ def discharge_laser():
     cursor = conn.cursor()
 
     current = cursor.execute("SELECT power_level FROM laser_status WHERE id = 1").fetchone()
-    # BUG: Can go below zero
-    new_power = current[0] - 25
+    new_power = max(current[0] - 25, 0)
 
     cursor.execute("UPDATE laser_status SET power_level = ? WHERE id = 1", (new_power,))
     conn.commit()
