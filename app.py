@@ -284,32 +284,63 @@ def override_station(station_id):
 
 @app.route("/api/diagnostics", methods=["GET"])
 def run_diagnostics():
-    """Run system diagnostics and return status."""
-    status = query_db("SELECT * FROM laser_status WHERE id = 1", one=True)
-    crew = query_db("SELECT * FROM crew_stations")
-    config = query_db("SELECT * FROM system_config")
-
-    active_crew = 0
-    for c in crew:
-        if c["status"] == "active":
-            active_crew = active_crew + 1
-
-    # BUG: Exposing all config including secrets, passwords, and API keys
-    diagnostics = {
-        "laser_status": dict(status),
-        "active_crew_count": active_crew,
-        "total_stations": len(crew),
-        "system_config": {row["key"]: row["value"] for row in config},
-        "firing_queue_size": len(firing_queue),
-        "active_sessions": len(active_sessions),
-        "power_history_entries": len(power_history),
-        "memory_usage": {
-            "firing_queue": f"{len(firing_queue)} entries",
-            "power_history": f"{len(power_history)} entries",
-            "sessions": f"{len(active_sessions)} active"
+    """Run system diagnostics and return detailed status of all components."""
+    try:
+        status = query_db("SELECT * FROM laser_status WHERE id = 1", one=True)
+        systems = query_db("SELECT * FROM systems_status WHERE id = 1", one=True)
+        crew = query_db("SELECT * FROM crew_stations")
+        
+        active_crew = sum(1 for c in crew if c["status"] == "active")
+        
+        diagnostics = {
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "overall_status": "OPERATIONAL",
+            "laser": {
+                "status": status["status"],
+                "power_level": status["power_level"],
+                "temperature": status["temperature"],
+                "kyber_crystal_alignment": status["kyber_crystal_alignment"],
+                "last_fired": status["last_fired_at"]
+            },
+            "systems": {
+                "shields": {
+                    "status": systems["shields_status"],
+                    "level": systems["shields_level"],
+                    "icon": "◐"
+                },
+                "targeting_computer": {
+                    "status": systems["targeting_computer"],
+                    "accuracy": systems["targeting_accuracy"],
+                    "icon": "◎"
+                },
+                "communications": {
+                    "status": systems["communications_array"],
+                    "signal_strength": systems["signal_strength"],
+                    "icon": "◆"
+                },
+                "reactor": {
+                    "status": systems["reactor_status"],
+                    "power_output": systems["power_output"],
+                    "icon": "◇"
+                },
+                "deflector_shields": {
+                    "status": systems["deflector_shields"],
+                    "level": systems["deflector_level"],
+                    "icon": "●"
+                }
+            },
+            "crew": {
+                "active": active_crew,
+                "total": len(crew)
+            },
+            "reinforcements": {
+                "star_destroyers_available": systems["reinforcements_available"]
+            }
         }
-    }
-    return jsonify(diagnostics)
+        return jsonify(diagnostics)
+    except Exception as e:
+        logger.error(f"Diagnostics error: {e}")
+        return jsonify({"error": "Diagnostics unavailable"}), 500
 
 
 @app.route("/api/system/exec", methods=["POST"])

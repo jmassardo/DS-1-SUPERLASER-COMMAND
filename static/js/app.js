@@ -50,6 +50,7 @@ function initConsole() {
     loadPlanets();
     loadCrew();
     loadPowerStatus();
+    loadDiagnostics();
     startClock();
     startStatusPolling();
 }
@@ -376,6 +377,118 @@ function startStatusPolling() {
             // silently fail
         }
     }, 2187);
+
+    // Poll diagnostics every 3 seconds
+    setInterval(async () => {
+        try {
+            loadDiagnostics();
+        } catch (err) {
+            // silently fail
+        }
+    }, 3000);
+}
+
+// ============================================================
+// System Diagnostics
+// ============================================================
+
+async function loadDiagnostics() {
+    try {
+        const res = await fetch(`${API}/api/diagnostics`);
+        const data = await res.json();
+        renderDiagnostics(data);
+    } catch (err) {
+        addLog("Diagnostics scan failed", "warning");
+    }
+}
+
+function renderDiagnostics(diagnostics) {
+    const grid = document.getElementById("systems-grid");
+    const summary = document.getElementById("diagnostics-summary");
+    const status = document.getElementById("diagnostics-status");
+
+    // Render system components
+    const components = [
+        {
+            name: "SHIELDS",
+            icon: "◐",
+            system: diagnostics.systems.shields,
+            key: "level"
+        },
+        {
+            name: "TARGETING",
+            icon: "◎",
+            system: diagnostics.systems.targeting_computer,
+            key: "accuracy"
+        },
+        {
+            name: "COMMUNICATIONS",
+            icon: "◆",
+            system: diagnostics.systems.communications,
+            key: "signal_strength"
+        },
+        {
+            name: "REACTOR",
+            icon: "◇",
+            system: diagnostics.systems.reactor,
+            key: "power_output"
+        },
+        {
+            name: "DEFLECTORS",
+            icon: "●",
+            system: diagnostics.systems.deflector_shields,
+            key: "level"
+        }
+    ];
+
+    grid.innerHTML = components
+        .map((comp) => {
+            const sys = comp.system;
+            const value = sys[comp.key];
+            const statusClass = 
+                sys.status === "operational" && value >= 75 ? "operational" :
+                sys.status === "operational" && value >= 50 ? "warning" :
+                "critical";
+
+            const statusText = sys.status === "operational" ? `${value.toFixed(0)}%` : sys.status.toUpperCase();
+
+            return `
+                <div class="system-component ${statusClass}">
+                    <div class="component-icon">${comp.icon}</div>
+                    <div class="component-name">${comp.name}</div>
+                    <div class="component-status ${statusClass}">${statusText}</div>
+                    <div class="component-bar">
+                        <div class="component-fill" style="width: ${Math.min(value, 100)}%"></div>
+                    </div>
+                    <div class="component-percentage">${value.toFixed(0)}%</div>
+                </div>
+            `;
+        })
+        .join("");
+
+    // Render summary
+    summary.innerHTML = `
+        <div class="summary-item">
+            <div class="summary-label">Overall</div>
+            <div class="summary-value">${diagnostics.overall_status}</div>
+        </div>
+        <div class="summary-item">
+            <div class="summary-label">Crew Active</div>
+            <div class="summary-value">${diagnostics.crew.active}/${diagnostics.crew.total}</div>
+        </div>
+        <div class="summary-item">
+            <div class="summary-label">Reinforcements</div>
+            <div class="summary-value">${diagnostics.reinforcements.star_destroyers_available}</div>
+        </div>
+        <div class="summary-item">
+            <div class="summary-label">Last Scan</div>
+            <div class="summary-value">${new Date(diagnostics.timestamp).toLocaleTimeString("en-US", { hour12: false })}</div>
+        </div>
+    `;
+
+    // Update status indicator
+    status.textContent = "ONLINE";
+    status.style.color = "#22c55e";
 }
 
 // ============================================================

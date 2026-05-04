@@ -134,6 +134,30 @@
             </div>
         </section>
 
+        <!-- System Diagnostics Dashboard -->
+        <section class="panel diagnostics-panel" id="diagnostics-panel">
+            <div class="panel-header">
+                <h2>⚙ SYSTEM DIAGNOSTICS</h2>
+                <span class="panel-status" id="diagnostics-status">SCANNING</span>
+            </div>
+            <div class="panel-body diagnostics-body">
+                <div class="systems-grid" id="systems-grid">
+                    <!-- Populated by loadDiagnostics() -->
+                    <div class="system-component">
+                        <div class="component-icon">◐</div>
+                        <div class="component-name">SHIELDS</div>
+                        <div class="component-status">SCANNING...</div>
+                        <div class="component-bar">
+                            <div class="component-fill" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="diagnostics-summary" id="diagnostics-summary">
+                    <!-- Populated by loadDiagnostics() -->
+                </div>
+            </div>
+        </section>
+
         <!-- Bottom Row: Crew + Logs -->
         <div class="grid-bottom">
             <!-- Crew Stations -->

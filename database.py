@@ -56,6 +56,22 @@ def init_db():
             key TEXT PRIMARY KEY,
             value TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS systems_status (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            shields_status TEXT DEFAULT 'operational',
+            shields_level INTEGER DEFAULT 85,
+            targeting_computer TEXT DEFAULT 'operational',
+            targeting_accuracy REAL DEFAULT 97.3,
+            communications_array TEXT DEFAULT 'operational',
+            signal_strength INTEGER DEFAULT 92,
+            reactor_status TEXT DEFAULT 'operational',
+            power_output INTEGER DEFAULT 87,
+            deflector_shields TEXT DEFAULT 'operational',
+            deflector_level INTEGER DEFAULT 78,
+            reinforcements_available INTEGER DEFAULT 12,
+            last_updated TEXT DEFAULT CURRENT_TIMESTAMP
+        );
     """)
 
     # Seed planets
@@ -101,6 +117,13 @@ def init_db():
         cursor.executemany(
             "INSERT INTO crew_stations (station_name, operator_name, rank, access_code, status) VALUES (?, ?, ?, ?, ?)",
             crew
+        )
+
+    # Seed systems status
+    cursor.execute("SELECT COUNT(*) FROM systems_status")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute(
+            "INSERT INTO systems_status (id) VALUES (1)"
         )
 
     # Seed system config
