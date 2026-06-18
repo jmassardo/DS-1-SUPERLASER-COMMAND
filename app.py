@@ -131,7 +131,17 @@ def charge_laser():
     data = request.get_json()
     amount = data.get("amount", 10)
 
-    # BUG: No input validation — amount could be negative, huge, or non-numeric
+    # Input validation
+    try:
+        amount = int(amount)
+    except (ValueError, TypeError):
+        return jsonify({"error": "Amount must be a number"}), 400
+
+    # BUG: Validation allows negative values which would discharge the laser
+    # and bypass the discharge endpoint's safety checks
+    if amount > 100:
+        return jsonify({"error": "Amount cannot exceed 100"}), 400
+
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -140,14 +150,30 @@ def charge_laser():
     current_temp = current[1]
 
     new_power = current_power + amount
-    # BUG: Off-by-one, allows power to reach 101
-    if new_power > 101:
+    # Cap at 100
+    if new_power > 100:
         new_power = 100
+    # BUG: Allows power to go negative via negative amount (no floor check)
 
-    # BUG: Temperature calculation can go negative with negative amount
     new_temp = current_temp + (amount * 0.7)
 
-    # BUG: No check if temperature exceeds safe limits before updating
+    # Temperature safety check
+    MAX_SAFE_TEMP = 85.0
+    if new_temp > MAX_SAFE_TEMP:
+        # BUG: Updates the database BEFORE returning the error
+        # The power level is already modified even though we "reject" the request
+        cursor.execute(
+            "UPDATE laser_status SET power_level = ?, temperature = ? WHERE id = 1",
+            (new_power, new_temp)
+        )
+        conn.commit()
+        conn.close()
+        return jsonify({
+            "error": f"Temperature would exceed safe limit ({MAX_SAFE_TEMP}°C)",
+            "current_temp": new_temp,
+            "action": "emergency_cooldown_required"
+        }), 400
+
     cursor.execute(
         "UPDATE laser_status SET power_level = ?, temperature = ? WHERE id = 1",
         (new_power, new_temp)
